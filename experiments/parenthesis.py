@@ -21,7 +21,8 @@ def main():
     
     log_file = setup_logging()
     
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    #device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cpu')
     print(f"Using device: {device}")
     
     X, y = generate_parenthesis_data(10000, 16)

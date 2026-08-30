@@ -143,7 +143,7 @@ class CSP(nn.Module):
         for layer in self.layers:
             x = layer(x)  #normed before layer output
         # Phase decoding: read out phase information
-        phase = torch.atan2(x[:,-1,0,:], h_real[:,-1,1,:]) 
+        phase = torch.atan2(x[:,-1,1,:], x[:,-1,0,:]+1e-8) 
         #phase = self.masked_atan(h_imag[:,-1,:], h_real[:,-1,:])
         x_dec  =  torch.cat([torch.cos(phase),torch.sin(phase)],dim=-1) 
         #x = torch.stack([h_imag[:,-1,:],h_real[:,-1,:]],dim=-1)
