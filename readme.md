@@ -6,10 +6,10 @@ Each block has four stages:
          │                     │
          └───── Skip ──────────┼──► (+) ──► Norm ──► h_t
 
-- **Rotate**: $\tilde{z}_t = e^{i\theta_t} \odot z_t$
-- **Recur**: $h_t = \alpha_t h_{t-1} + \gamma_t \tilde{z}_t$
-- **Skip**: $\tilde{h}_t = h_t + z_t$
-- **Norm**: $h_t^{(l)} = \tilde{h}_t / |\tilde{h}_t|$
+- **Rotate**: `z~_t = e^(i*theta_t) ⊙ z_t`
+- **Recur**: `h_t = alpha_t * h_{t-1} + gamma_t * z~_t`
+- **Skip**: `h~_t = h_t + z_t`
+- **Norm**: `h_t^(l) = h~_t / |h~_t|`
 
 # Complex State Propagator (CSP)
 
