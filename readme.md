@@ -230,9 +230,9 @@ We observe clear **grokking** on Parity, Mod-3 Counting, and Parenthesis Matchin
 **Length generalization curves** (regenerated for all models and tasks)
 
 <div align="center">
-  <img src="./experiments/parity/results/parity_length_acc.png" width="300"/>
-  <img src="./experiments/mod3/results/mod3_length_acc.png" width="300"/>
-  <img src="./experiments/Dyck-1/results/Dyck-1_length_acc.png" width="300"/>
+  <img src="./experiments/parity/results/parity_length_acc.png" width="600"/>
+  <img src="./experiments/mod3/results/mod3_length_acc.png" width="600"/>
+  <img src="./experiments/Dyck-1/results/Dyck-1_length_acc.png" width="600"/>
 </div>
 
 ---
