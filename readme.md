@@ -220,19 +220,19 @@ We observe clear **grokking** on Parity, Mod-3 Counting, and Parenthesis Matchin
   <img src="./experiments/mod3/CSP-Fast/figure/training_curves.png" width="400"/>
 </div>
 
-**Parenthesis** (using F1 to demonstrate grokking, since accuracy is saturated on this problem)
+**Dyck-1** (using F1 to demonstrate grokking, since accuracy is saturated on this problem)
 
 <div align="center">
-  <img src="./experiments/Dyck-1/CSP-Fast/figure/grokking_analysis_f1.png" width="400"/>
-  <img src="./experiments/Dyck-1/CSP-Fast/figure/training_curves_f1.png" width="400"/>
+  <img src="./experiments/Dyck-1/CSP-Fast/figure/grokking_analysis.png" width="400"/>
+  <img src="./experiments/Dyck-1/CSP-Fast/figure/training_curves.png" width="400"/>
 </div>
 
 **Length generalization curves** (regenerated for all models and tasks)
 
 <div align="center">
-  <img src="./experiments/parity/results/parity_length_accu.png" width="300"/>
-  <img src="./experiments/mod3/results/mod3_length_accu.png" width="300"/>
-  <img src="./experiments/Dyck-1/results/Dyck-1_length_accu.png" width="300"/>
+  <img src="./experiments/parity/results/parity_length_acc.png" width="300"/>
+  <img src="./experiments/mod3/results/mod3_length_acc.png" width="300"/>
+  <img src="./experiments/Dyck-1/results/Dyck-1_length_acc.png" width="300"/>
 </div>
 
 ---
