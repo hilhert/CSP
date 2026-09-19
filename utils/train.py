@@ -4,6 +4,20 @@ from tqdm import tqdm
 import torch.nn as nn
 from safetensors.torch import save_model, save_file
 import os
+from sklearn.metrics import f1_score
+import random
+import numpy as np
+
+def set_seed(seed: int):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
 
 def save_checkpoint(model, optimizer, epoch, loss, f1, filepath):
     checkpoint = {
@@ -13,60 +27,65 @@ def save_checkpoint(model, optimizer, epoch, loss, f1, filepath):
         'loss': loss,
         'f1': f1,
     }
-    # 保存 .pt 训练全量状态
+    # save .pt train state dict all 
     torch.save(checkpoint, filepath)
     
-    # 剥离可能存在的后缀，确保导出 pure_name.safetensors
+    #  pure_name.safetensors
     base_path, _ = os.path.splitext(filepath)
-    safetensors_path = base_path + ".safetensors"
     
-    save_model(model, safetensors_path)
+    has_rnn = any(k.startswith("rnn.") for k in model.state_dict().keys())
+    if not has_rnn:
+        safetensors_path = base_path + ".safetensors"
+        for module in model.modules():
+            if isinstance(module, (nn.RNN, nn.LSTM, nn.GRU)):
+                module.flatten_parameters = lambda: None
+        save_model(model, safetensors_path)
     
 def load_checkpoint(filepath, model, optimizer=None, device='cpu'):
     """
-    【恢复训练专用】从 .pt 检查点加载模型与优化器状态。
+    [recovering]  load model and optimizer check point form .pt file 
     
-    参数:
-        filepath: .pt 检查点文件路径 (例如 "checkpoints/best_model.pt")
-        model: 已初始化的 PyTorch 模型对象
-        optimizer: 已初始化的 PyTorch 优化器对象 (可选)
+    param:
+        filepath: .pt checkpoint  (for example "checkpoints/best_model.pt")
+        model:  PyTorch modal already have been initialized
+        optimizer: the optimizer together with the model state dict (optional)
         
-    返回:
+    return:
         model, optimizer, start_epoch, f1
     """
     if not os.path.exists(filepath):
-        raise FileNotFoundError(f"找不到检查点文件: {filepath}")
+        raise FileNotFoundError(f"Could not find checkpoint file: {filepath}")
         
-    print(f"[Checkpoint] 正在恢复训练状态: {filepath}")
+    print(f"[Checkpoint] recovering training state: {filepath}")
     checkpoint = torch.load(filepath, map_location=device)
     
-    # 1. 恢复模型权重
+    # 1. recover model weights
     model.load_state_dict(checkpoint['model_state_dict'])
     
-    # 2. 恢复优化器状态 (如果传入了 optimizer)
+    # 2. revocer optimizer state (if  optimizer have been passed)
     if optimizer is not None and 'optimizer_state_dict' in checkpoint:
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         
-    start_epoch = checkpoint.get('epoch', 0) + 1  # 下轮继续
+    start_epoch = checkpoint.get('epoch', 0) + 1  # continue_with the next epoch
     loss = checkpoint.get('loss', 0.0)
     f1 = checkpoint.get('f1', 0.0)
     
-    print(f"[Checkpoint] 成功恢复至 Epoch {start_epoch} | 上次 Loss: {loss:.4f} | F1: {f1:.4f}")
+    print(f"[Checkpoint] successfully recovered to  Epoch {start_epoch} | last Loss: {loss:.4f} | F1: {f1:.4f}")
     return model, optimizer, start_epoch, f1
 
 
 def load_model(filepath, model, device='cpu'):
     """
-    【推理/评估专用】加载模型权重。
-    优先加载 .safetensors，如果不存在则自动回退读取 .pt 权重。
+    【reasoning/evaluating】load model weights
+    Try to load .safetensors firstly, if it does not exists, load .pt file
     
-    参数:
-        filepath: 模型路径或基础路径 (例如 "best_model.safetensors" 或 "best_model.pt")
-        model: 已初始化的 PyTorch 模型对象
-        device: 目标设备 ('cpu', 'cuda' 等)
+    param:
+        filepath: path contaings the model (ie "best_model.safetensors" or "best_model.pt")
+        model:  PyTorch model already been initialized
+        device:  ('cpu', 'cuda' )
         
-    返回:
-        model (处于 model.eval() 状态)
+    return:
+        model (the eval state)
     """
     base_path, _ = os.path.splitext(filepath)
     safetensors_path = base_path + ".safetensors"
@@ -74,21 +93,21 @@ def load_model(filepath, model, device='cpu'):
     
     model = model.to(device)
     
-    # 优先寻找 .safetensors 加载
+    # find .safetensors fistrly
     if os.path.exists(safetensors_path):
-        print(f"[Model] 正在使用 Safetensors 加载模型权重: {safetensors_path}")
+        print(f"[Model] load model using Safetensors format: {safetensors_path}")
         st_load_model(model, safetensors_path)
-    # 次选加载 .pt 中的权重
+    # find .pt secondary
     elif os.path.exists(pt_path):
-        print(f"[Model] 未找到 Safetensors，回退使用 PyTorch .pt 加载: {pt_path}")
+        print(f"[Model] could not find Safetensors model file, roll back to PyTorch .pt loading: {pt_path}")
         checkpoint = torch.load(pt_path, map_location=device)
         state_dict = checkpoint.get('model_state_dict', checkpoint)
         model.load_state_dict(state_dict)
     else:
-        raise FileNotFoundError(f"未找到对应的权重文件 (.safetensors 或 .pt): {base_path}")
+        raise FileNotFoundError(f"could not find checkpoint with both formats (.safetensors or .pt): {base_path}")
         
-    model.eval()  # 自动切换为评估模式
-    print(f"[Model] 模型权重加载完成，已就绪 (eval 模式)！")
+    model.eval()  # switch to eval mode
+    print(f"[Model] widht already been loaded, ready to eval！")
     return model    
 
 
@@ -98,202 +117,102 @@ def focal_loss(pred, target, gamma=2.0, alpha=0.25):
     return (alpha * (1 - pt) ** gamma * ce).mean()
 
 
-def evaluate_model(model, test_loader, device='cpu'):
+def evaluate_model(model, test_loader, device='cpu', ignore_index=-100):
+    """
+    Token-level accuracy over all non-ignored positions.
+
+    model output: [B, T, C]
+    target:       [B, T]  with ignore_index on padding
+    """
     model.eval()
     correct = total = 0
     with torch.no_grad():
         for X_batch, y_batch in test_loader:
             X_batch, y_batch = X_batch.to(device), y_batch.to(device)
-            pred = model(X_batch)
-            _, pred_class = torch.max(pred, 1)
-            correct += (pred_class == y_batch).sum().item()
-            total += y_batch.size(0)
-    return correct / total
+            logits = model(X_batch)                # [B, T, C]
+            preds = logits.argmax(dim=-1)          # [B, T]
+
+            mask = (y_batch != ignore_index)
+            correct += (preds[mask] == y_batch[mask]).sum().item()
+            total += mask.sum().item()
+
+    return correct / max(total, 1)
 
 
-def evaluate_model_f1(model, test_loader, device='cpu'):
-    from sklearn.metrics import f1_score
+def evaluate_model_f1(model, test_loader, device='cpu', ignore_index=-100):
+    """
+    Token-level F1 over all non-ignored positions.
+    For binary labels, use average='binary'.
+    For multi-class labels, use average='macro' or 'micro'.
+    """
     model.eval()
     all_preds, all_targets = [], []
     with torch.no_grad():
         for X_batch, y_batch in test_loader:
             X_batch, y_batch = X_batch.to(device), y_batch.to(device)
-            pred = model(X_batch)
-            _, pred_class = torch.max(pred, 1)
-            all_preds.extend(pred_class.cpu().numpy())
-            all_targets.extend(y_batch.cpu().numpy())
-    return f1_score(all_targets, all_preds, average='binary')
+            logits = model(X_batch)
+            preds = logits.argmax(dim=-1)          # [B, T]
+
+            mask = (y_batch != ignore_index)
+            all_preds.extend(preds[mask].cpu().numpy())
+            all_targets.extend(y_batch[mask].cpu().numpy())
+    num_classes = len(set(all_targets))
+    avg = 'binary' if num_classes == 2 else 'macro'
+    return f1_score(all_targets, all_preds, average=avg)
 
 
-def train_model(model, train_loader, test_loader, epochs=300,weight_decay=1e-8,lr=0.001, device='cpu', logger=None, loss_fn=None, cp_path=None):
+def train_model(model, train_loader, test_loader, epochs=300,weight_decay=1e-8,lr=0.001, device='cpu', logger=None, loss_fn=None, ignored_idx=-100, cp_path=None, eval_= False):
     optimizer = torch.optim.Adam(model.parameters(), lr=lr,weight_decay=weight_decay)
-    #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=20, factor=0.5)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs*1.5, eta_min=1e-5)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-6)
     if loss_fn is None:
-        loss_fn = nn.CrossEntropyLoss()
+        loss_fn = nn.CrossEntropyLoss(ignore_index = ignored_idx,reduction='none')
     
     train_losses, f1s,test_accs, gradient_norms = [],[],[], []
     best_f1 = 0.0
+    best_accu = 0.0
     log = logger.info if logger else print
     
     for epoch in tqdm(range(epochs), desc="Training"):
+       
         model.train()
         epoch_loss = 0.0
-        
+
         for X_batch, y_batch in train_loader:
             X_batch, y_batch = X_batch.to(device), y_batch.to(device)
             pred = model(X_batch)
-            loss = loss_fn(pred, y_batch)
-            
+            loss = torch.mean(loss_fn(pred.permute(0,2,1), y_batch))
+
             optimizer.zero_grad()
             loss.backward()
-            
+
             total_norm = 0.0
             for p in model.parameters():
                 if p.grad is not None:
                     total_norm += p.grad.data.norm(2).item() ** 2
             total_norm = total_norm ** 0.5
-            
+
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             epoch_loss += loss.item()
-        
+
         scheduler.step()
         avg_loss = epoch_loss / len(train_loader)
         train_losses.append(avg_loss)
         gradient_norms.append(total_norm)
         
+       
         if epoch % 10 == 0:
             test_acc = evaluate_model(model, test_loader, device)
             f1       = evaluate_model_f1(model, test_loader, device)
             test_accs.append(test_acc)
             f1s.append(f1)
             #scheduler.step(test_acc)
-            if  f1 > best_f1:
+            if  f1 >= best_f1 and test_acc >= best_accu:
                 save_checkpoint(model, optimizer, epoch, loss, f1, cp_path)
                 best_f1 = f1
+                best_accu = test_acc
             log(f"Epoch {epoch:3d} | Loss: {avg_loss:.4f} | Acc: {test_acc:.4f} | F1: {f1:.4f} | GradNorm: {total_norm:.4f} | Best_F1: {best_f1:.4f}")
-    
+        
+    save_checkpoint(model, optimizer, epoch, loss, f1, cp_path)
     return train_losses, f1s,test_accs, gradient_norms
 
-def train_model_seq(model, dataloader, optimizer, criterion, device,focal=False):
-    model.train()
-    total_loss = 0
-    for batch in tqdm(dataloader, desc='Training'):
-        input_ids = batch['input_ids'].to(device)
-        output_ids = batch['output_ids'].to(device)
-        out_len = batch['out_len'].to(device)
-        
-        # 直接传 output_ids，forward 内部会处理
-        logits = model(input_ids, output_ids)  # [B, T, vocab_size]
-        targets = output_ids  # [B, T]
-        
-        mask = torch.arange(targets.size(1), device=device).unsqueeze(0) < out_len.unsqueeze(1)
-        
-        
-        loss = criterion(logits.permute(0, 2, 1), targets)
-        
-        if focal:
-            
-            max_len = loss.size(1)
-            
-            t = torch.arange(max_len, device=loss.device).float().unsqueeze(0)  # [1, T]
-            # 用 sigmoid 函数生成权重，范围从 0.5 到 1.0
-            weights = torch.sigmoid((t - max_len/2) / (max_len/6))  # [1, T]
-            
-            weights = weights.repeat(loss.size(0), 1)  # [B, T]
-            
-            weights = weights * mask.float()
-            
-            loss = (loss * weights).sum()/ (weights.sum() + 1e-6)
-           
-
-        else:    
-            loss = (loss * mask.float()).sum() / mask.sum()    
-        total_norm = 0.0
-        for p in model.parameters():
-                if p.grad is not None:
-                    total_norm += p.grad.data.norm(2).item() ** 2
-        total_norm = total_norm**0.5
-        
-        optimizer.zero_grad()
-        loss.backward()
-        #torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-        optimizer.step()
-        total_loss += loss.item()
-    return total_loss / len(dataloader), total_norm
-
-
-def evaluate_seq(model, dataloader, device, pad_idx, eos_idx, debug=True):
-    model.eval()
-    correct = 0
-    total = 0
-    idx2char = dataloader.dataset.idx2char
-    
-    with torch.no_grad():
-        for batch_idx, batch in enumerate(tqdm(dataloader, desc='Evaluating')):
-            input_ids = batch['input_ids'].to(device)
-            output_ids = batch['output_ids'].to(device)
-            out_len = batch['out_len']
-            
-            pred_ids = model(input_ids, target_ids=None)  # [B, T]
-            
-            for i in range(len(pred_ids)):
-                # 直接用 out_len 截取，不需要再跳过 <SOS>
-                pred_tokens = pred_ids[i, :out_len[i]].tolist()
-                target_tokens = output_ids[i, :out_len[i]].tolist()
-                
-                pred_tokens = [x for x in pred_tokens if x not in [pad_idx, eos_idx]]
-                target_tokens = [x for x in target_tokens if x not in [pad_idx, eos_idx]]
-                
-                pred_str = ''.join(idx2char[x] for x in pred_tokens)
-                target_str = ''.join(idx2char[x] for x in target_tokens)
-                
-                if debug and batch_idx == 0 and i < 5:
-                    input_tokens = batch['input_ids'][i].tolist()
-                    input_tokens = [x for x in input_tokens if x not in [pad_idx, eos_idx]]
-                    input_str = ''.join(idx2char[x] for x in input_tokens)
-                    print(f"[Debug] Input: {input_str}")
-                    print(f"[Debug] Pred : {pred_str}")
-                    print(f"[Debug] Target: {target_str}")
-                    print(f"pred_ids[0]: {pred_ids[0].tolist()}")
-                    print("-" * 40)
-                
-                if pred_str == target_str:
-                    correct += 1
-                total += 1
-    
-    return correct / total
-
-'''
-def train_epoch_seq(model, dataloader, optimizer, criterion, device):
-    model.train()
-    total_loss = 0
-    for batch in tqdm(dataloader, desc='Training'):
-        input_ids = batch['input_ids'].to(device)
-        output_ids = batch['output_ids'].to(device)
-        out_len = batch['out_len']
-        
-        # 直接传 output_ids，forward 内部会处理
-        logits = model(input_ids, output_ids)  # [B, T, vocab_size]
-        targets = output_ids  # [B, T]
-        
-       # 基础掩码：有效位置为 True
-        mask = torch.arange(targets.size(1), device=device).unsqueeze(0) < out_len.unsqueeze(1)
-
-        # 构造权重矩阵：有效位置权重为 1，最后一个有效 token 权重为 out_len - 1
-        weight = mask.float()
-        
-        for i in range(targets.size(0)):
-            weight[i, out_len[i] - 1] = out_len[i] - 1  # 只对每个样本的最后一个有效 token 设置权重
-        
-        loss = criterion(logits.permute(0, 2, 1), targets)
-        loss = (loss * weight).sum() / weight.sum()
-        
-        optimizer.zero_grad()
-        loss.backward()
-        #torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-        optimizer.step()
-        total_loss += loss.item()
-    return total_loss / len(dataloader)
-'''
