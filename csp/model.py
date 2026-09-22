@@ -110,7 +110,7 @@ class CSP_Hidden_FAST(nn.Module):
         self.hidden_dim = hidden_dim
 
         # Rotation
-        self.theta_proj = nn.Linear(2*hidden_dim, 1)
+        self.theta_proj = nn.Linear(2*hidden_dim, 2,bias=False)
         # Recurrence: input projection B (shared for real and imag)
         self.B_proj = nn.Linear(hidden_dim, hidden_dim,bias=False)
 
@@ -122,8 +122,8 @@ class CSP_Hidden_FAST(nn.Module):
         self.skip_gate = nn.Parameter(torch.ones(hidden_dim) * 0.5)
 
         # Initialization
-        nn.init.zeros_(self.theta_proj.weight)
-        nn.init.zeros_(self.theta_proj.bias)
+        #nn.init.zeros_(self.theta_proj.weight)
+        #nn.init.zeros_(self.theta_proj.bias)
 
     def forward(self, x):
         """
@@ -135,8 +135,10 @@ class CSP_Hidden_FAST(nn.Module):
         B, T, _, H = x.shape
 
         #1. Rotation with accumulatated angle.
-       
-        theta_all = torch.cumsum(torch.tanh(self.theta_proj(x.view(B,T,-1)))* math.pi,dim=1) # [B, T, 1]
+        
+        c  = self.theta_proj(x.view(B,T,-1))
+        
+        theta_all = torch.cumsum(torch.atan2(c[:,:,1],c[:,:,0]+torch.sign(c[:,:,0])*1e-9),dim=1).unsqueeze(-1) # [B, T, 1]
        
 
         cos_a, sin_a = torch.cos(theta_all), torch.sin(theta_all)  # [B, T, 1]
@@ -198,10 +200,10 @@ class CSP_Hidden_Vanilla(nn.Module):
         self.hidden_dim = hidden_dim
 
         # Rotation
-        self.theta_proj = nn.Linear(2*hidden_dim, 1)
+        self.theta_proj = nn.Linear(2*hidden_dim, 2,bias=False)
         
         # Recurrence: input projection B (shared for real and imag)
-        self.B_proj = nn.Linear(hidden_dim, hidden_dim)
+        self.B_proj = nn.Linear(hidden_dim, hidden_dim,bias=False)
 
         # Decay factor (alpha = exp(log_alpha), initialized to 1)
         self.delta_proj =  nn.Linear(2*hidden_dim, 1)
@@ -211,8 +213,8 @@ class CSP_Hidden_Vanilla(nn.Module):
         self.skip_gate = nn.Parameter(torch.ones(hidden_dim) * 0.5)
 
         # Initialization
-        nn.init.zeros_(self.theta_proj.weight)
-        nn.init.zeros_(self.theta_proj.bias)
+        #nn.init.zeros_(self.theta_proj.weight)
+        #nn.init.zeros_(self.theta_proj.bias)
 
     def forward(self, x):
         """
@@ -244,7 +246,8 @@ class CSP_Hidden_Vanilla(nn.Module):
             # 1. Rotate: theta_t from input
             decision_linear_prev = torch.cat([h_real_prev,h_imag_prev],dim=-1)
             decision_linear_current = torch.cat([h_real_t,h_imag_t],dim=-1)
-            theta_t = torch.tanh(self.theta_proj(decision_linear_current)) * math.pi
+            c    = self.theta_proj(decision_linear_current)
+            theta_t = torch.atan2(c[:,1],c[:,0]+torch.sign(c[:,0])*1e-9).unsqueeze(-1) 
             theta_cum = theta_cum + theta_t
             cos_t, sin_t = torch.cos(theta_cum), torch.sin(theta_cum)
 

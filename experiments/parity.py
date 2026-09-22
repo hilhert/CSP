@@ -31,7 +31,9 @@ vocab_size= 2
 embed_dim = 16
 eval_lens = list(range(8, 65, 2))
 eval_ = False
+train_all = True
 test_samples = 20000
+
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 result_dir = os.path.join(base_dir, f"{task}/results")
@@ -120,7 +122,7 @@ def main():
     zipped = list(zip(model_labels, models, m_params))
     
     SEEDS = [42, 43, 44, 45, 46]
-
+ 
     current_model = ""
     for seed,idx in enumerate(SEEDS):
         all_results_one_seed = {}
@@ -134,15 +136,15 @@ def main():
             os.makedirs(model_path, exist_ok=True)
             os.makedirs(fig_path, exist_ok=True)
 
-            cp_name = f"{task}_{label}_{hidden_dim}_{num_layers}.pt"
+            cp_name = f"{task}_{label}_{hidden_dim}_{num_layers}_seed_{idx}.pt"
             cp_path = os.path.join(model_path, cp_name)
             
-            
-            if not os.path.exists(cp_path) and not eval_:
-                current_model = label
-            
-            if current_model != label:
-                continue
+            if not train_all:
+                if not os.path.exists(cp_path) and not eval_:
+                    current_model = label
+
+                if current_model != label:
+                    continue
 
             
             log_file = setup_logging()

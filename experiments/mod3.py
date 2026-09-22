@@ -12,7 +12,7 @@ from csp import (
 )
 from utils import (
     train_model, evaluate_model, evaluate_model_f1, load_checkpoint,
-    setup_logging, plot_training_curves, plot_grokking_analysis,set_seed
+    setup_logging, plot_training_curves, plot_grokking_analysis,set_seed,load_model
 )
 
 
@@ -30,7 +30,8 @@ max_len = 64
 vocab_size= 3
 embed_dim = 16 
 eval_lens = list(range(8, 65, 2))
-eval_ = True
+eval_ = False
+train_all = True
 test_samples = 20000
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -47,10 +48,23 @@ models = [
     VanillaRNN,
     ComplexRNN,
     TransformerModel,
-    MambaModel,
+    MambaModel
 ]
-
+'''
 m_params = [
+        {
+        "vocab_size": vocab_size,
+        "embed_dim":  embed_dim,        
+        "hidden_dim": hidden_dim,
+        "output_dim": output_dim,
+        "num_layers": num_layers,
+        "rope_input": False,
+        "mode": "vanilla",
+    }#,   #CSP fast
+]
+'''
+m_params = [
+
     {
         "vocab_size": vocab_size,
         "embed_dim":  embed_dim,
@@ -60,6 +74,7 @@ m_params = [
         "rope_input": False,
         "mode": "vanilla",
     },  # CSP vanilla
+   
     {
         "vocab_size": vocab_size,
         "embed_dim":  embed_dim,        
@@ -68,7 +83,8 @@ m_params = [
         "num_layers": num_layers,
         "rope_input": False,
         "mode": "fast",
-    },  # CSP fast
+    },   #CSP fast
+  
     {
         "vocab_size": vocab_size,
         "embed_dim":  embed_dim,       
@@ -96,6 +112,7 @@ m_params = [
         "output_dim": output_dim,
         "n_layers": num_layers,
     },  # MambaModel
+
 ]
 
 
@@ -121,7 +138,7 @@ def main():
     zipped = list(zip(model_labels, models, m_params))
     
     SEEDS = [42, 43, 44, 45, 46]
-
+    #SEEDS = [46]
     current_model = ""
     for seed,idx in enumerate(SEEDS):
         all_results_one_seed = {}
@@ -135,15 +152,16 @@ def main():
             os.makedirs(model_path, exist_ok=True)
             os.makedirs(fig_path, exist_ok=True)
 
-            cp_name = f"{task}_{label}_{hidden_dim}_{num_layers}.pt"
+            cp_name = f"{task}_{label}_{hidden_dim}_{num_layers}_seed_{idx}.pt"
             cp_path = os.path.join(model_path, cp_name)
             
             
-            if not os.path.exists(cp_path) and not eval_:
-                current_model = label
-            
-            if current_model != label and not eval_:
-                continue
+            if (not train_all) and (not eval_):
+                if not os.path.exists(cp_path) and not eval_:
+                    current_model = label
+
+                if current_model != label:
+                    continue
 
             
             log_file = setup_logging()
@@ -178,7 +196,7 @@ def main():
                       f"{evaluate_model_f1(model, test_loader, device):.4f}")
                 print(f"Log: {log_file}")
             else:
-                load_checkpoint(cp_path, model, optimizer=None, device=device)
+                load_model(cp_path, model, device=device)
 
             # ---------- Length generalization sweep ----------
             accus, f1s = [], []

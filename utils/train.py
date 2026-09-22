@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 import torch.nn as nn
-from safetensors.torch import save_model, save_file
+from safetensors.torch import save_model, save_file , load_file
 import os
 from sklearn.metrics import f1_score
 import random
@@ -57,7 +57,7 @@ def load_checkpoint(filepath, model, optimizer=None, device='cpu'):
         raise FileNotFoundError(f"Could not find checkpoint file: {filepath}")
         
     print(f"[Checkpoint] recovering training state: {filepath}")
-    checkpoint = torch.load(filepath, map_location=device)
+    checkpoint = torch.load(filepath, map_location=device,weights_only=False)
     
     # 1. recover model weights
     model.load_state_dict(checkpoint['model_state_dict'])
@@ -96,7 +96,9 @@ def load_model(filepath, model, device='cpu'):
     # find .safetensors fistrly
     if os.path.exists(safetensors_path):
         print(f"[Model] load model using Safetensors format: {safetensors_path}")
-        st_load_model(model, safetensors_path)
+        state_dict = load_file(safetensors_path)
+        model.load_state_dict(state_dict)
+        #st_load_model(model, safetensors_path)
     # find .pt secondary
     elif os.path.exists(pt_path):
         print(f"[Model] could not find Safetensors model file, roll back to PyTorch .pt loading: {pt_path}")

@@ -209,7 +209,7 @@ class MambaBlock(nn.Module):
         A = torch.tanh(self.A_raw)                # [d_inner, d_state]
 
         # discretize
-        dA = torch.exp(dt.unsqueeze(-1) * A)      # [B, T, d_inner, d_state]
+        dA = torch.tanh(dt.unsqueeze(-1) * A)      # [B, T, d_inner, d_state]
         dB = dt.unsqueeze(-1) * B_ssm.unsqueeze(2)  # [B, T, d_inner, d_state]
         dBx = dB * x_conv.unsqueeze(-1)
 

@@ -138,7 +138,7 @@ def plot_grokking_analysis(test_accs, gradient_norms, train_losses=None,
 
         # First index where |ΔGradNorm| exceeds the threshold
         candidates = np.where(dgrad > threshold)[0]
-        if len(candidates) > 0:
+        if len(candidates) > 1:
             first_spike = int(candidates[1])
             ax2.axvline(
                 x=first_spike, color='red', linestyle='--',
@@ -181,7 +181,7 @@ def plot_gradient_norm(gradient_norms, save_path='.',file_path='gradient_norm.pn
 
         # First index where |ΔGradNorm| exceeds the threshold
         candidates = np.where(dgrad > threshold)[0]
-        if len(candidates) > 0:
+        if len(candidates) > 1:
             first_spike = int(candidates[1])
             ax2.axvline(
                 x=first_spike, color='red', linestyle='--',
@@ -246,7 +246,7 @@ def plot_grokking_analysis_f1(test_f1s, gradient_norms, train_losses=None,
 
         # First index where |ΔGradNorm| exceeds the threshold
         candidates = np.where(dgrad > threshold)[0]
-        if len(candidates) > 0:
+        if len(candidates) > 1:
             first_spike = int(candidates[1])
             ax2.axvline(
                 x=first_spike, color='red', linestyle='--',
