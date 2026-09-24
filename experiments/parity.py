@@ -52,6 +52,32 @@ models = [
     MambaModel,
 ]
 
+'''
+m_params = [
+    {
+        "vocab_size": vocab_size,
+        "embed_dim":  embed_dim,
+        "hidden_dim": hidden_dim,
+        "output_dim": output_dim,
+        "num_layers": num_layers,
+        "rope_input": False,
+        "mode": "vanilla",
+    },  # CSP vanilla   
+    {
+        "vocab_size": vocab_size,
+        "embed_dim":  embed_dim,        
+        "hidden_dim": hidden_dim,
+        "output_dim": output_dim,
+        "num_layers": num_layers,
+        "rope_input": False,
+        "mode": "fast",
+    },  # CSP fast
+    
+    
+  
+]
+
+'''
 m_params = [
     {
         "vocab_size": vocab_size,

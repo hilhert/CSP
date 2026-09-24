@@ -5,7 +5,8 @@ import math
 from .model_classical import  BaseSeqModel
 
 
-
+'''
+experimental but seems not causual valid.
 def haar_multiscale(x):
     """x: [B, T, 2,H] -> multiscale Haar coefficients，Keep [B, T, 2,H]"""
     B, T, _ , H = x.shape
@@ -89,7 +90,7 @@ class CSP_Hidden_AccuMod(nn.Module):
         x_out = x_out / magnitude.unsqueeze(-2)  
 
         return x_out
-
+'''
 
 
 
@@ -136,7 +137,10 @@ class CSP_Hidden_FAST(nn.Module):
 
         #1. Rotation with accumulatated angle.
         
-        c  = self.theta_proj(x.view(B,T,-1))
+        c  = torch.tanh(self.theta_proj(x.view(B,T,-1)))
+        m_c = torch.sqrt(c[:, :, 0]**2 + c[:, :, 1]**2 + 1e-8).detach()
+        c = c / m_c.unsqueeze(-1)  
+        
         
         theta_all = torch.cumsum(torch.atan2(c[:,:,1],c[:,:,0]+torch.sign(c[:,:,0])*1e-9),dim=1).unsqueeze(-1) # [B, T, 1]
        
@@ -153,18 +157,19 @@ class CSP_Hidden_FAST(nn.Module):
         
         
         #2. Element construct after rotation
-        gamma_all       =     (1 + torch.sin(self.gamma_proj(x.view(B,T,-1)))).unsqueeze(-1)/2 
-        x_g             =     self.B_proj(x_rot)* gamma_all
+        #gamma_all       =     (1 + torch.sin(self.gamma_proj(x.view(B,T,-1)))).unsqueeze(-1)/2 
+        x_g             =     self.B_proj(x_rot)
+        gamma_all       =     (1 + torch.sin(self.gamma_proj(x_g.view(B,T,-1)))).unsqueeze(-1)/2
+        x_g = x_g*gamma_all
         
         
         #3. Mamba style recur
-        x_shifted  = torch.cat([torch.zeros_like(x.view(B,T,-1)[:,0,:].unsqueeze(-2),device=x.device),x.view(B,T,-1)[:,:-1,:]],dim=1)
-        delta_all       =    F.softplus(self.delta_proj(torch.cumsum(x_g.view(B,T,-1),dim=1)+x_shifted))  # [B, T, 1]
-        #alpha_all       =    torch.exp(-delta_all).unsqueeze(-1)                # [B, T, 1] [B, T, 1]
        
+        #alpha_all       =    torch.exp(-delta_all).unsqueeze(-1)                # [B, T, 1] [B, T, 1]
+        delta_all       =    F.softplus(self.delta_proj(x_g.view(B,T,-1)))
         #print(x_shifted.shape)
         alpha_all  = torch.exp(-delta_all).unsqueeze(-1)
-        #alpha_all  = torch.tanh(self.delta_proj(torch.cumsum(x_g.view(B,T,-1),dim=1)+x_shifted)).unsqueeze(-1)
+        
         alpha_cumprod   =     torch.cumprod(alpha_all,dim=1) 
         alpha_cumshift =     torch.cat([torch.ones(B,1,1,1,device=x.device),alpha_cumprod[:,:-1,:,:]],dim=1)
         
@@ -246,7 +251,10 @@ class CSP_Hidden_Vanilla(nn.Module):
             # 1. Rotate: theta_t from input
             decision_linear_prev = torch.cat([h_real_prev,h_imag_prev],dim=-1)
             decision_linear_current = torch.cat([h_real_t,h_imag_t],dim=-1)
-            c    = self.theta_proj(decision_linear_current)
+            c    = torch.tanh(self.theta_proj(decision_linear_current))
+            m_c = torch.sqrt(c[:, 0]**2 + c[:, 1]**2 + 1e-8).detach()
+            c = c / m_c.unsqueeze(-1)  
+            
             theta_t = torch.atan2(c[:,1],c[:,0]+torch.sign(c[:,0])*1e-9).unsqueeze(-1) 
             theta_cum = theta_cum + theta_t
             cos_t, sin_t = torch.cos(theta_cum), torch.sin(theta_cum)
@@ -254,16 +262,19 @@ class CSP_Hidden_Vanilla(nn.Module):
             h_real_rot = cos_t * h_real_t - sin_t * h_imag_t
             h_imag_rot = sin_t * h_real_t + cos_t * h_imag_t
 
+            B_real_t = self.B_proj(h_real_rot)
+            B_imag_t = self.B_proj(h_imag_rot)
+            
+            decision_after_rope = torch.cat([B_real_t,B_imag_t],dim=-1)
             # 2. Recur: alpha * accume_state + gamma * input_projection_after_rotation  
-            delta_t = F.softplus(self.delta_proj(decision_linear_prev+decision_linear_current))
+            delta_t = F.softplus(self.delta_proj(decision_after_rope))
            
             alpha = torch.exp(-delta_t)
             #alpha   = torch.tanh(self.delta_proj(decision_linear_prev+decision_linear_current)) 
               
-            gamma_t = (1 + torch.sin(self.gamma_proj(decision_linear_current)))/2
+            gamma_t = (1 + torch.sin(self.gamma_proj(decision_after_rope)))/2
             
-            B_real_t = self.B_proj(h_real_rot)
-            B_imag_t = self.B_proj(h_imag_rot)
+            
 
             h_real_new = alpha*h_real_prev  + gamma_t*B_real_t
             h_imag_new = alpha*h_imag_prev  + gamma_t*B_imag_t
@@ -338,7 +349,7 @@ class CSP(BaseSeqModel):
               # [B, T, H]
         x = x.squeeze(-1).long()
              
-        x = torch.tanh(self._embed(x))
+        x = self._embed(x)
         
         x_real = x
         x_imag = torch.zeros_like(x)
@@ -368,7 +379,7 @@ class CSP(BaseSeqModel):
             x = layer(x)  #normed before layer output
         
         # CSP now switch to transformer style sensing head! It is still valid and accurate!
-        phase = torch.atan2(x[:,:,1,:], x[:,:,0,:]+1e-8) 
+        phase = torch.atan2(x[:,:,1,:], x[:,:,0,:]) 
         
         x_dec  =  torch.cat([torch.cos(phase),torch.sin(phase)],dim=-1) 
         

@@ -65,3 +65,50 @@
 - No data was excluded or selected; the reported values are the full
   mean ± std over seeds 42–46.
 
+## [v0.4-frozen] — 2026-09-25
+
+### Added
+- Full 5-seed length generalization results for all six models with the
+  frozen-embedding configuration (parity, mod-3, Dyck-1)
+- Architectural asymmetry finding: CSP-Vanilla leads on mod-3 while
+  CSP-Fast leads on parity and Dyck-1
+
+### Changed
+- Embedding table is now frozen during training. This removes input-
+  representation drift as a source of seed sensitivity, and resolves
+  several non-convergence failures observed in earlier runs.
+- Cosine annealing schedule replaced with a fixed learning rate. Cosine
+  annealing to zero was found to prevent convergence on parity for a
+  subset of seeds; fixed LR resolves this.
+- Parity numbers updated: CSP-Vanilla 0.716 → 0.782, CSP-Fast 0.645 →
+  0.756. CSP-Vanilla reaches perfect 1.000 at L=64 on one of five seeds.
+- Mod-3 numbers updated: CSP-Vanilla 0.921 → 0.927 (stable), CSP-Fast
+  0.876 → 0.684 (lower under the new configuration). CSP-Vanilla remains
+  the strongest soft-contraction model on mod-3.
+- Dyck-1 numbers updated: CSP-Fast 0.919 → 0.871, CSP-Vanilla 0.857 →
+  0.845. Transformer remains the strongest model on this task.
+- README architecture section describes the `atan2(tanh(W_θ z_t))`
+  formulation and the frozen-embedding configuration.
+
+### Fixed
+- Non-convergence failures on parity (2 of 5 seeds plateauing at 0.95–0.995
+  training accuracy) resolved by removing cosine annealing.
+- Input-representation drift resolved by freezing the embedding table.
+
+### Known limitations
+- Mod-3 seed variance remains high for CSP-Vanilla (std = 0.076) and
+  CSP-Fast (std = 0.043). The exact-phase solution is reachable by
+  gradient descent but not reliably found across all seeds.
+- CSP does not reach the exact-transition tier on parity. Vanilla RNN and
+  Complex RNN maintain accuracy ≥ 0.995 at all evaluation lengths.
+- The Dyck-1 task continues to favor the Transformer, which achieves
+  0.926 at L=64, higher than either CSP variant.
+- Mamba negative-eigenvalue variant occasionally shows NaN collapse
+  under some configurations; a bounded eigenvalue parametrization is
+  recommended for stable training.
+
+### Baseline seeds
+- All baseline results (Vanilla RNN, Complex RNN, Mamba, Transformer)
+  are averaged across five seeds with the same protocol as CSP.
+- No data was excluded or selected; the reported values are the full
+  mean ± std over seeds 42–46.

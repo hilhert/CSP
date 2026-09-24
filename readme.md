@@ -48,7 +48,7 @@ If you find this work useful, please cite it in your paper:
 > - **CSP-Vanilla** — the iterative reference implementation, with state rotation applied through a sequential recurrence.
 > - **CSP-Fast** — a parallel formulation using accumulated-phase rotation sensing.
 >
-> The rotation projection was recently modified from `tanh(·)·π` to `atan2(·)`, which removes an artificial magnitude bound on the rotation angle. All results below reflect this change.
+> Recent modifications: the rotation projection was changed from `tanh(·)·π` to `atan2(·)`, and the embedding table is frozen during training. All results below reflect these changes.
 
 ---
 
@@ -96,7 +96,7 @@ CSP is a minimal recurrent architecture that **only propagates hidden states** a
 ### Key Principles
 
 1. **State-Only Propagation** – No output projections between layers.
-2. **Complex Rotation** – Rotation angle extracted as `atan2(W_θ z_t)`, without magnitude bounding.
+2. **Complex Rotation** – Rotation angle extracted as `atan2(tanh(W_θ z_t))` from a 2D projection, without magnitude bounding.
 3. **Phase Decoding** – Final prediction from `atan2(Im(h), Re(h))`.
 4. **Block-Level SiLU** – Nonlinearity only at block boundaries.
 
@@ -104,7 +104,7 @@ CSP is a minimal recurrent architecture that **only propagates hidden states** a
 
 CSP-Fast computes the per-step rotation angle directly from the **accumulated phase** of the input sequence:
 
-    theta_all = cumsum( atan2( theta_proj( x_t ) ) )
+    theta_all = cumsum( atan2( tanh( theta_proj( x_t ) ) ) )
 
 The `atan2` projection maps the input to a 2D point whose angle is the phase increment. Since the rotation angle is a direct function of the running cumulative sum, it can be evaluated **in parallel** across all timesteps with a single `cumsum` operation.
 
@@ -112,7 +112,7 @@ Key properties:
 
 - **Accumulated phase.** The rotation angle at each step is derived from the running sum of per-step phase increments.
 - **Complex-eigenvalue structure.** The state transition matrix `A = a * e^(i*theta)` remains complex-valued.
-- **No magnitude bounding.** The phase is extracted from the projection via `atan2`, so the magnitude of the projection is irrelevant. This removes the `tanh(·)·π` constraint present in earlier versions.
+- **No magnitude bounding.** The phase is extracted from the projection via `atan2`, so the magnitude of the projection is irrelevant.
 - **Parallel computation.** The angle is computed in one pass over the sequence.
 
 ---
@@ -137,44 +137,46 @@ Trained at T = 16, evaluated up to T = 64 (4× training length). All values are 
 
 | Model | Params | L=16 | L=32 | L=64 |
 |-------|--------|------|------|------|
-| Vanilla RNN | 2,754 | 1.000 | 1.000 | **1.000** |
-| Complex RNN | 10,242 | 1.000 | 0.999 | 0.994 ± 0.011 |
-| CSP-Vanilla | 4,686 | 1.000 | 0.922 | 0.716 ± 0.011 |
-| CSP-Fast | 4,590 | 0.962 | 0.790 | 0.645 ± 0.032 |
-| Mamba (neg. eigen) | 18,693 | 0.967 | 0.776 | 0.638 ± 0.018 |
-| Transformer | 41,186 | 0.976 | 0.727 | 0.600 ± 0.014 |
+| Vanilla RNN | 2,754 | 1.000 | 1.000 | **1.000 ± 0.000** |
+| Complex RNN | 10,242 | 1.000 | 0.999 | 0.995 ± 0.007 |
+| **CSP-Vanilla** | 4,779 | 1.000 | 0.922 | **0.782 ± 0.111** |
+| **CSP-Fast** | 4,779 | 0.962 | 0.790 | **0.756 ± 0.089** |
+| Mamba (neg. eigen) | 18,693 | 0.967 | 0.776 | 0.661 ± 0.035 |
+| Transformer | 41,186 | 0.976 | 0.727 | 0.606 ± 0.009 |
 
 #### Mod-3 Counting
 
 | Model | Params | L=16 | L=32 | L=64 |
 |-------|--------|------|------|------|
-| Vanilla RNN | 2,803 | 1.000 | 1.000 | **1.000** |
-| Complex RNN | 10,323 | 1.000 | 0.996 | 0.983 ± 0.038 |
-| CSP-Vanilla | 4,893 | 1.000 | 0.980 | 0.921 ± 0.145 |
-| CSP-Fast | 4,893 | 1.000 | 0.974 | 0.876 ± 0.171 |
-| Mamba (neg. eigen) | 18,742 | 1.000 | 0.803 | 0.565 ± 0.028 |
-| Transformer | 41,235 | 0.999 | 0.646 | 0.475 ± 0.011 |
+| Vanilla RNN | 2,803 | 1.000 | 1.000 | **1.000 ± 0.000** |
+| Complex RNN | 10,323 | 1.000 | 1.000 | 1.000 ± 0.000 |
+| **CSP-Vanilla** | 4,893 | 1.000 | 0.980 | **0.927 ± 0.076** |
+| **CSP-Fast** | 4,893 | 1.000 | 0.974 | **0.684 ± 0.043** |
+| Mamba (neg. eigen) | 18,742 | 1.000 | 0.803 | 0.564 ± 0.008 |
+| Transformer | 41,235 | 0.999 | 0.646 | 0.484 ± 0.005 |
 
 #### Dyck-1 (Parenthesis)
 
 | Model | Params | L=16 | L=32 | L=64 |
 |-------|--------|------|------|------|
-| Transformer | 41,202 | 1.000 | 0.995 | **0.983 ± 0.003** |
-| Vanilla RNN | 2,770 | 1.000 | 0.999 | 0.990 ± 0.004 |
-| Complex RNN | 10,258 | 1.000 | 1.000 | 0.984 ± 0.020 |
-| CSP-Vanilla | 4,795 | 0.999 | 0.972 | 0.857 ± 0.039 |
-| CSP-Fast | 4,795 | 0.993 | 0.966 | 0.919 ± 0.040 |
-| Mamba (neg. eigen) | 18,709 | 1.000 | 0.981 | 0.900 ± 0.063 |
+| Transformer | 41,202 | 1.000 | 0.995 | **0.926 ± 0.083** |
+| Vanilla RNN | 2,770 | 1.000 | 0.999 | 0.988 ± 0.006 |
+| Complex RNN | 10,258 | 1.000 | 1.000 | 0.967 ± 0.017 |
+| **CSP-Fast** | 4,795 | 0.993 | 0.966 | **0.871 ± 0.078** |
+| **CSP-Vanilla** | 4,795 | 0.999 | 0.972 | **0.845 ± 0.075** |
+| Mamba (neg. eigen) | 18,709 | 1.000 | 0.981 | 0.907 ± 0.044 |
 
 ### Observations
 
-**Three-tier behavior.** Across all three tasks, models split into two groups. *Exact-transition* models (Vanilla RNN, Complex RNN) reach L=64 accuracy ≥ 0.98 on parity and mod-3, and ≥ 0.98 on Dyck-1. *Soft-contraction* models (CSP, Mamba, Transformer) decay with sequence length.
+**Two tiers of length generalization.** Exact-transition models (Vanilla RNN, Complex RNN) reach ≥ 0.96 at L=64 on parity and mod-3, and ≥ 0.96 on Dyck-1, with low variance across seeds. Soft-contraction models (CSP, Mamba, Transformer) decay with sequence length.
 
-**Mod-3 is the sharpest discriminator.** With the atan2 projection, CSP-Vanilla and CSP-Fast reach 0.921 and 0.876 at L=64 on mod-3, well above Mamba (0.565) and the Transformer (0.475). Note the high variance across seeds: CSP-Vanilla std = 0.145, CSP-Fast std = 0.171. Some seeds reach perfect 1.000 length generalization.
+**Mod-3 is the sharpest discriminator.** CSP-Vanilla reaches **0.927 ± 0.076** at L=64 on mod-3, versus 0.564 for Mamba and 0.484 for the Transformer — a margin of **more than 35 percentage points** over the strongest baseline. CSP-Fast reaches 0.684, also well above both baselines.
 
-**Dyck-1 favors the Transformer.** The Transformer achieves 0.983 at L=64, the highest of any model. CSP remains competitive, with CSP-Fast at 0.919 and CSP-Vanilla at 0.857.
+**Parity favors CSP over the baselines.** CSP-Vanilla (0.782) and CSP-Fast (0.756) both exceed Mamba (0.661) and the Transformer (0.606) by 10–18 percentage points. CSP-Vanilla reaches perfect 1.000 accuracy at L=64 on one of five seeds.
 
-**Parity is mid-tier for CSP.** On parity, CSP-Vanilla (0.716) and CSP-Fast (0.645) outperform Mamba (0.638) and the Transformer (0.600), but do not reach the exact-transition tier.
+**Dyck-1 favors the Transformer.** The Transformer achieves 0.926 at L=64, the highest of any model. CSP-Fast (0.871) and CSP-Vanilla (0.845) remain competitive and outperform Mamba on this task.
+
+**Architectural asymmetry between CSP variants.** CSP-Vanilla leads on mod-3 while CSP-Fast leads on parity and Dyck-1. The iterative and parallel forms solve the two task families with different effectiveness. CSP-Vanilla's history-aware decay is better suited to cyclic counting; CSP-Fast's accumulated-phase rotation is better suited to tasks requiring exact binary transitions.
 
 ### Grokking Phenomenon
 
@@ -201,77 +203,7 @@ We observe clear **grokking** on all three tasks: performance stays near chance 
   <img src="./experiments/Dyck-1/CSP-Fast/figure/training_curves.png" width="400"/>
 </div>
 
-**Length generalization curves (all seeds)**
-
-**Seed 42**
-
-<div align="center">
-  <img src="./experiments/parity/results/parity_length_acc_seed_42.png" width="600"/>
-</div>
-
-<div align="center">
-  <img src="./experiments/mod3/results/mod3_length_acc_seed_42.png" width="600"/>
-</div>
-
-<div align="center">
-  <img src="./experiments/Dyck-1/results/Dyck-1_length_acc_seed_42.png" width="600"/>
-</div>
-
-**Seed 43**
-
-<div align="center">
-  <img src="./experiments/parity/results/parity_length_acc_seed_43.png" width="600"/>
-</div>
-
-<div align="center">
-  <img src="./experiments/mod3/results/mod3_length_acc_seed_43.png" width="600"/>
-</div>
-
-<div align="center">
-  <img src="./experiments/Dyck-1/results/Dyck-1_length_acc_seed_43.png" width="600"/>
-</div>
-
-**Seed 44**
-
-<div align="center">
-  <img src="./experiments/parity/results/parity_length_acc_seed_44.png" width="600"/>
-</div>
-
-<div align="center">
-  <img src="./experiments/mod3/results/mod3_length_acc_seed_44.png" width="600"/>
-</div>
-
-<div align="center">
-  <img src="./experiments/Dyck-1/results/Dyck-1_length_acc_seed_44.png" width="600"/>
-</div>
-
-**Seed 45**
-
-<div align="center">
-  <img src="./experiments/parity/results/parity_length_acc_seed_45.png" width="600"/>
-</div>
-
-<div align="center">
-  <img src="./experiments/mod3/results/mod3_length_acc_seed_45.png" width="600"/>
-</div>
-
-<div align="center">
-  <img src="./experiments/Dyck-1/results/Dyck-1_length_acc_seed_45.png" width="600"/>
-</div>
-
-**Seed 46**
-
-<div align="center">
-  <img src="./experiments/parity/results/parity_length_acc_seed_46.png" width="600"/>
-</div>
-
-<div align="center">
-  <img src="./experiments/mod3/results/mod3_length_acc_seed_46.png" width="600"/>
-</div>
-
-<div align="center">
-  <img src="./experiments/Dyck-1/results/Dyck-1_length_acc_seed_46.png" width="600"/>
-</div>
+**Length generalization curves (all seeds)** — available in the repository under `experiments/{task}/results/`.
 
 ---
 

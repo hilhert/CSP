@@ -165,7 +165,7 @@ def evaluate_model_f1(model, test_loader, device='cpu', ignore_index=-100):
 
 def train_model(model, train_loader, test_loader, epochs=300,weight_decay=1e-8,lr=0.001, device='cpu', logger=None, loss_fn=None, ignored_idx=-100, cp_path=None, eval_= False):
     optimizer = torch.optim.Adam(model.parameters(), lr=lr,weight_decay=weight_decay)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-6)
+    #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-6)
     if loss_fn is None:
         loss_fn = nn.CrossEntropyLoss(ignore_index = ignored_idx,reduction='none')
     
@@ -197,7 +197,7 @@ def train_model(model, train_loader, test_loader, epochs=300,weight_decay=1e-8,l
             optimizer.step()
             epoch_loss += loss.item()
 
-        scheduler.step()
+        #scheduler.step()
         avg_loss = epoch_loss / len(train_loader)
         train_losses.append(avg_loss)
         gradient_norms.append(total_norm)

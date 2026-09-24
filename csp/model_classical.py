@@ -15,10 +15,15 @@ class BaseSeqModel(nn.Module):
         self.hidden_dim = hidden_dim
 
         self.embed      = nn.Embedding(vocab_size, embed_dim)
+        self.embed.weight.requires_grad = False 
         self.embed_proj = nn.Linear(embed_dim, hidden_dim)
         self.dropout    = nn.Dropout(dropout)
         self.head       = nn.Linear(hidden_dim, output_dim)
+        self._init_embedding()
 
+    def _init_embedding(self):
+        nn.init.orthogonal_(self.embed.weight,gain=1.0)
+    
     def _embed(self, x):
         # x: [B, T, 1] or [B, T]
         x = x.squeeze(-1).long()               # [B, T]
